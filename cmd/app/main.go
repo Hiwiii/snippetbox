@@ -10,6 +10,8 @@ import (
 	"github.com/Hiwiii/snippetbox.git/internal/middleware"
 	"github.com/Hiwiii/snippetbox.git/internal/routes"
 	"github.com/Hiwiii/snippetbox.git/internal/models"
+	"github.com/Hiwiii/snippetbox.git/internal/templates"
+
 )
 
 func main() {
@@ -31,17 +33,26 @@ func main() {
 
 	// Initialize the SnippetModel with the database connection
 	snippetModel := &models.SnippetModel{DB: db}
+
+	// initialize a new template 
+	templateCache, err := templates.NewTemplateCache()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Initialize the Application struct
 	app := &config.Application{
 		InfoLog:  infoLog,
 		ErrorLog: errorLog,
 		DB:       db,
 		SnippetModel: snippetModel,
+		TemplateCache: templateCache,
 	}
 
 	// Initialize the Helpers struct
 	helpers := &middleware.Helpers{
 		ErrorLog: errorLog,
+		TemplateCache: templateCache,
 	}
 
 	// Initialize and start the HTTP server

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"html/template"
 	"database/sql"
 	"log"
 	"github.com/Hiwiii/snippetbox.git/internal/models"
@@ -12,4 +13,5 @@ type Application struct {
 	ErrorLog *log.Logger
 	DB       *sql.DB
 	SnippetModel *models.SnippetModel
+	TemplateCache map[string]*template.Template
 }

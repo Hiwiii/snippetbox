@@ -3,113 +3,134 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	// "html/template"
 	"net/http"
 	"strconv"
 
 	"github.com/Hiwiii/snippetbox.git/config"
+	"github.com/Hiwiii/snippetbox.git/internal/forms"
 	"github.com/Hiwiii/snippetbox.git/internal/middleware"
 	"github.com/Hiwiii/snippetbox.git/internal/models"
+	"github.com/Hiwiii/snippetbox.git/internal/validators"
+
+	"github.com/julienschmidt/httprouter"
+	// "github.com/Hiwiii/snippetbox.git/internal/templates"
 )
 
 // Home handler with dependency injection using middleware.Helpers
 func Home(app *config.Application, helpers *middleware.Helpers) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Check if the requested path is exactly "/".
-		if r.URL.Path != "/" {
-			helpers.NotFound(w)
-			return
-		}
-
-		// Fetch the latest snippets using the SnippetModel's Latest() method.
-		snippets, err := app.SnippetModel.Latest()
-		if err != nil {
-			helpers.ServerError(w, err)
-			return
-		}
-
-		// Print the snippets for testing purposes
-        for _, snippet := range snippets {
-            fmt.Fprintf(w, "%+v\n", snippet)
+    return func(w http.ResponseWriter, r *http.Request) {
+        snippets, err := app.SnippetModel.Latest()
+        if err != nil {
+            helpers.ServerError(w, err)
+            return
         }
 
-		// Define the files for the template.
-		// files := []string{
-		// 	"./ui/html/base.tmpl",
-		// 	"./ui/html/partials/nav.tmpl",
-		// 	"./ui/html/pages/home.tmpl",
-		// }
+        data := helpers.NewTemplateData(r)
+        data.Snippets = snippets
 
-		// // Parse the template files.
-		// ts, err := template.ParseFiles(files...)
-		// if err != nil {
-		// 	helpers.ServerError(w, err)
-		// 	return
-		// }
+        helpers.Render(w, http.StatusOK, "home.tmpl", data)
+    }
+}
 
-		// // Pass the snippets data to the template for rendering.
-		// err = ts.ExecuteTemplate(w, "base", snippets)
-		// if err != nil {
-		// 	helpers.ServerError(w, err)
-		// }
-	}
+// SnippetCreateForm handler with dependency injection using middleware.Helpers
+func SnippetCreate(app *config.Application, helpers *middleware.Helpers) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        // Initialize template data
+        data := helpers.NewTemplateData(r)
+
+        // Set the default snippet expiry to 365 days.
+        data.Form = forms.SnippetCreateForm{
+            Expires: 365,
+        }
+
+        // Render the form template
+        helpers.Render(w, http.StatusOK, "create.tmpl", data)
+    }
 }
 
 
-// SnippetCreate handler with dependency injection using middleware.Helpers
-func SnippetCreate(app *config.Application, helpers *middleware.Helpers) http.HandlerFunc {
+
+// SnippetCreatePost handler with dependency injection using middleware.Helpers
+func SnippetCreatePost(app *config.Application, helpers *middleware.Helpers) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			helpers.ClientError(w, http.StatusMethodNotAllowed)
+		// Parse the form data.
+		err := r.ParseForm()
+		if err != nil {
+			helpers.ClientError(w, http.StatusBadRequest)
 			return
 		}
 
-		// Create some variables holding dummy data
-		// These will be removed during the build in favor of real form data
-		title := "O snail"
-		content := "O snail\nClimb Mount Fuji,\nBut slowly, slowly!\n\n- Kobayashi Issa"
-		expires := 7
+		// Get the expires value from the form.
+		expires, err := strconv.Atoi(r.PostForm.Get("expires"))
+		if err != nil {
+			helpers.ClientError(w, http.StatusBadRequest)
+			return
+		}
 
-		// Pass the data to the SnippetModel.Insert() method
-		id, err := app.SnippetModel.Insert(title, content, expires)
+		// Initialize a new Validator instance.
+		input := validator.Validator{}
+
+		// Perform validation checks using the validator package.
+		input.CheckField(validator.NotBlank(r.PostForm.Get("title")), "title", "This field cannot be blank")
+		input.CheckField(validator.MaxChars(r.PostForm.Get("title"), 100), "title", "This field cannot be more than 100 characters long")
+		input.CheckField(validator.NotBlank(r.PostForm.Get("content")), "content", "This field cannot be blank")
+		input.CheckField(validator.PermittedInt(expires, 1, 7, 365), "expires", "This field must equal 1, 7, or 365")
+
+		// If there are validation errors, re-display the form with the errors.
+		if !input.Valid() {
+			data := helpers.NewTemplateData(r)
+			data.Form = struct {
+				Title       string
+				Content     string
+				Expires     int
+				FieldErrors map[string]string
+			}{
+				Title:       r.PostForm.Get("title"),
+				Content:     r.PostForm.Get("content"),
+				Expires:     expires,
+				FieldErrors: input.FieldErrors,
+			}
+			helpers.Render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
+			return
+		}
+
+		// Pass the data to the SnippetModel.Insert() method to save it in the database.
+		id, err := app.SnippetModel.Insert(r.PostForm.Get("title"), r.PostForm.Get("content"), expires)
 		if err != nil {
 			helpers.ServerError(w, err)
 			return
 		}
 
-		// Redirect the user to the relevant page for the snippet
-		http.Redirect(w, r, fmt.Sprintf("/snippet/view?id=%d", id), http.StatusSeeOther)
+		// Redirect the user to the relevant page for the snippet.
+		http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
 	}
 }
+
 
 // SnippetView handler with dependency injection using middleware.Helpers
-// SnippetView handler with dependency injection
 func SnippetView(app *config.Application, helpers *middleware.Helpers) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Retrieve the "id" parameter from the URL query string.
-		id, err := strconv.Atoi(r.URL.Query().Get("id"))
-		if err != nil || id < 1 {
-			// If the ID is invalid or less than 1, return a 404 Not Found response.
-			helpers.NotFound(w)
-			return
-		}
+    return func(w http.ResponseWriter, r *http.Request) {
+        params := httprouter.ParamsFromContext(r.Context())
+        id, err := strconv.Atoi(params.ByName("id"))
+        if err != nil || id < 1 {
+            helpers.NotFound(w)
+            return
+        }
 
-		// Use the SnippetModel's Get method to fetch the snippet data.
-		snippet, err := app.SnippetModel.Get(id)
-		if err != nil {
-			if errors.Is(err, models.ErrNoRecord) {
-				// If no matching record is found, return a 404 Not Found response.
-				helpers.NotFound(w)
-			} else {
-				// For other errors, return a 500 Internal Server Error response.
-				helpers.ServerError(w, err)
-			}
-			return
-		}
+        snippet, err := app.SnippetModel.Get(id)
+        if err != nil {
+            if errors.Is(err, models.ErrNoRecord) {
+                helpers.NotFound(w)
+            } else {
+                helpers.ServerError(w, err)
+            }
+            return
+        }
 
-		// Write the snippet data as a plain-text HTTP response.
-		// This is temporary; you can later modify this to render a proper HTML page.
-		fmt.Fprintf(w, "%+v", snippet)
-	}
+        data := helpers.NewTemplateData(r)
+        data.Snippet = snippet
+
+        helpers.Render(w, http.StatusOK, "view.tmpl", data)
+    }
 }
+

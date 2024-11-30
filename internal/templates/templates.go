@@ -1,10 +1,11 @@
 package templates
+
 import (
 	"html/template"
 	"path/filepath"
 	"time"
 
-    "github.com/Hiwiii/snippetbox.git/internal/models"
+	"github.com/Hiwiii/snippetbox.git/internal/models"
 )
 
 // humanDate formats a time.Time object into a human-readable format.
@@ -23,6 +24,7 @@ type TemplateData struct {
 	Snippet     *models.Snippet
 	Snippets    []*models.Snippet
 	Form        any
+	Flash       string
 }
 
 // NewTemplateCache initializes and returns a map of cached templates.

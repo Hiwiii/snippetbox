@@ -1,20 +1,25 @@
 package middleware
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
-	"net/http"
-	"runtime/debug"
 	"html/template"
 	"log"
+	"net/http"
+	"runtime/debug"
 	"time"
-	"bytes"
 
 	"github.com/Hiwiii/snippetbox.git/internal/templates"
+	"github.com/alexedwards/scs/v2"
+	"github.com/go-playground/form/v4"
 )
 
 type Helpers struct {
-	ErrorLog      *log.Logger
-	TemplateCache map[string]*template.Template
+	ErrorLog       *log.Logger
+	TemplateCache  map[string]*template.Template
+	FormDecoder    *form.Decoder
+	SessionManager *scs.SessionManager
 }
 
 // serverError writes an error message and stack trace to the error log,
@@ -77,5 +82,31 @@ func (h *Helpers) Render(w http.ResponseWriter, status int, page string, data in
 func (h *Helpers) NewTemplateData(r *http.Request) *templates.TemplateData {
 	return &templates.TemplateData{
 		CurrentYear: time.Now().Year(),
+		Flash:       h.SessionManager.PopString(r.Context(), "flash"),
 	}
+}
+
+// DecodePostForm decodes form data from an HTTP request into a destination struct.
+// The second parameter `dst` is the target destination for the decoded data.
+func (h *Helpers) DecodePostForm(r *http.Request, dst any) error {
+	// Parse the form data to populate r.PostForm.
+	err := r.ParseForm()
+	if err != nil {
+		return err
+	}
+
+	// Decode the form data into the target destination struct.
+	err = h.FormDecoder.Decode(dst, r.PostForm)
+	if err != nil {
+		// Check if the error is an InvalidDecoderError, which indicates an issue with the target destination.
+		var invalidDecoderError *form.InvalidDecoderError
+		if errors.As(err, &invalidDecoderError) {
+			panic(err) // Panic for InvalidDecoderError to indicate programmer misuse.
+		}
+
+		// For all other errors, return them as normal.
+		return err
+	}
+
+	return nil
 }

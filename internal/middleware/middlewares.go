@@ -33,15 +33,15 @@ func SecureHeaders(next http.Handler) http.Handler {
 
 // LogRequest logs information about each HTTP request.
 func LogRequest(app *config.Application) func(next http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            // Log the IP address, protocol, HTTP method, and requested URL.
-            app.InfoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method, r.URL.RequestURI())
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Log the IP address, protocol, HTTP method, and requested URL.
+			app.InfoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method, r.URL.RequestURI())
 
-            // Call the next handler in the chain.
-            next.ServeHTTP(w, r)
-        })
-    }
+			// Call the next handler in the chain.
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RecoverPanic recovers from panics and returns a 500 Internal Server Error.

@@ -2,8 +2,8 @@ package models
 
 import (
 	"database/sql"
-	"time"
 	"errors"
+	"time"
 )
 
 // Define a Snippet type to hold the data for an individual snippet.
@@ -28,7 +28,6 @@ func (m *SnippetModel) Insert(title string, content string, expires int) (int, e
 	stmt := `INSERT INTO snippets (title, content, created, expires)
 	VALUES(?, ?, UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? DAY))`
 
-	
 	result, err := m.DB.Exec(stmt, title, content, expires)
 	if err != nil {
 		return 0, err
@@ -73,7 +72,6 @@ func (m *SnippetModel) Get(id int) (*Snippet, error) {
 	// If everything is OK, return the Snippet object
 	return s, nil
 }
-
 
 // Latest returns the 10 most recently created snippets.
 func (m *SnippetModel) Latest() ([]*Snippet, error) {
@@ -122,4 +120,3 @@ func (m *SnippetModel) Latest() ([]*Snippet, error) {
 	// If everything went OK, return the slice of snippets.
 	return snippets, nil
 }
-

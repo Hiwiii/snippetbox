@@ -24,14 +24,16 @@ func Routes(app *config.Application, helpers *middleware.Helpers) http.Handler {
 	fileServer := http.FileServer(http.Dir("./ui/static/"))
 	router.Handler(http.MethodGet, "/static/*filepath", http.StripPrefix("/static", fileServer))
 
-	// Register routes with handlers using dynamic parameters.
-	router.HandlerFunc(http.MethodGet, "/", handlers.Home(app, helpers))
-	router.HandlerFunc(http.MethodGet, "/snippet/view/:id", handlers.SnippetView(app, helpers))
-    router.HandlerFunc(http.MethodGet, "/snippet/create", handlers.SnippetCreate(app, helpers)) // For displaying the form
-    router.HandlerFunc(http.MethodPost, "/snippet/create", handlers.SnippetCreatePost(app, helpers)) // For handling form submission
+	// Create a dynamic middleware chain.
+	dynamic := alice.New(helpers.SessionManager.LoadAndSave)
 
+	// Register dynamic routes (routes needing middleware for session handling).
+	router.Handler(http.MethodGet, "/", dynamic.ThenFunc(handlers.Home(app, helpers)))
+	router.Handler(http.MethodGet, "/snippet/view/:id", dynamic.ThenFunc(handlers.SnippetView(app, helpers)))
+	router.Handler(http.MethodGet, "/snippet/create", dynamic.ThenFunc(handlers.SnippetCreate(app, helpers)))
+	router.Handler(http.MethodPost, "/snippet/create", dynamic.ThenFunc(handlers.SnippetCreatePost(app, helpers)))
 
-	// Create the middleware chain using alice.
+	// Create a standard middleware chain for logging, recovery, and headers.
 	standard := alice.New(
 		func(h http.Handler) http.Handler {
 			return middleware.RecoverPanic(app, helpers, h)
@@ -40,6 +42,6 @@ func Routes(app *config.Application, helpers *middleware.Helpers) http.Handler {
 		middleware.SecureHeaders,
 	)
 
-	// Wrap the router with middleware and return.
+	// Wrap the router with standard middleware and return.
 	return standard.Then(router)
 }

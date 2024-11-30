@@ -1,4 +1,10 @@
 /tmp/
-go sum
 
-go mod
+# Ignore Go build artifacts
+*.exe
+*.out
+*.test
+*.o
+
+
+tls/
